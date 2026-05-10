@@ -86,7 +86,7 @@ go install github.com/lucap/envy@latest
 If you prefer to build locally:
 
 ```bash
-git clone https://github.com/lucap/envy
+git clone https://github.com/lucap123/envy
 cd envy
 make build
 ```
