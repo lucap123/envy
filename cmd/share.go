@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,7 +12,12 @@ import (
 	"golang.org/x/term"
 )
 
-func Share(s *store.Store, args []string) error {
+type Bundle struct {
+	Salt string `json:"salt"`
+	Data string `json:"data"`
+}
+
+func Share(s *store.Store, key []byte, args []string) error {
 	outFile := "team.env.enc"
 	for i, a := range args {
 		if a == "--output" && i+1 < len(args) {
@@ -19,7 +25,7 @@ func Share(s *store.Store, args []string) error {
 		}
 	}
 
-	pv, err := s.Load()
+	pv, err := s.Load(key)
 	if err != nil {
 		return err
 	}
@@ -28,7 +34,7 @@ func Share(s *store.Store, args []string) error {
 		return fmt.Errorf("no variables in active profile to share")
 	}
 
-	fmt.Print("Enter encryption password: ")
+	fmt.Print("Enter encryption password for bundle: ")
 	pw, err := term.ReadPassword(int(syscall.Stdin))
 	fmt.Println()
 	if err != nil {
@@ -53,13 +59,28 @@ func Share(s *store.Store, args []string) error {
 		return err
 	}
 
-	key := crypto.DeriveKey(pw)
-	encrypted, err := crypto.Encrypt(data, key)
+	salt, err := crypto.GenerateSalt(16)
 	if err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(outFile, encrypted, 0600); err != nil {
+	bundleKey := crypto.DeriveSimpleKey(pw, salt)
+	encrypted, err := crypto.Encrypt(data, bundleKey)
+	if err != nil {
+		return err
+	}
+
+	bundle := Bundle{
+		Salt: hex.EncodeToString(salt),
+		Data: hex.EncodeToString(encrypted),
+	}
+
+	bundleData, err := json.Marshal(bundle)
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(outFile, bundleData, 0600); err != nil {
 		return fmt.Errorf("could not write bundle: %w", err)
 	}
 
@@ -69,25 +90,33 @@ func Share(s *store.Store, args []string) error {
 	return nil
 }
 
-func Import(s *store.Store, args []string) error {
+func Import(s *store.Store, key []byte, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: envy import <file>")
 	}
 
-	data, err := os.ReadFile(args[0])
+	bundleData, err := os.ReadFile(args[0])
 	if err != nil {
 		return fmt.Errorf("could not read file: %w", err)
 	}
 
-	fmt.Print("Enter decryption password: ")
+	var bundle Bundle
+	if err := json.Unmarshal(bundleData, &bundle); err != nil {
+		return fmt.Errorf("invalid bundle format")
+	}
+
+	fmt.Print("Enter decryption password for bundle: ")
 	pw, err := term.ReadPassword(int(syscall.Stdin))
 	fmt.Println()
 	if err != nil {
 		return fmt.Errorf("could not read password: %w", err)
 	}
 
-	key := crypto.DeriveKey(pw)
-	decrypted, err := crypto.Decrypt(data, key)
+	salt, _ := hex.DecodeString(bundle.Salt)
+	encrypted, _ := hex.DecodeString(bundle.Data)
+
+	bundleKey := crypto.DeriveSimpleKey(pw, salt)
+	decrypted, err := crypto.Decrypt(encrypted, bundleKey)
 	if err != nil {
 		return fmt.Errorf("decryption failed — wrong password?")
 	}
@@ -97,8 +126,8 @@ func Import(s *store.Store, args []string) error {
 		return fmt.Errorf("invalid bundle format")
 	}
 
-	// Merge into current store — don't overwrite, add missing profiles
-	current, err := s.Load()
+	// Merge into current store
+	current, err := s.Load(key)
 	if err != nil {
 		return err
 	}
@@ -111,7 +140,7 @@ func Import(s *store.Store, args []string) error {
 		}
 	}
 
-	if err := s.Save(current); err != nil {
+	if err := s.Save(current, key); err != nil {
 		return err
 	}
 

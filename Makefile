@@ -1,9 +1,14 @@
+BINARY=envy.exe
+
 build:
-	go build -o envy.exe main.go
+	go build -o $(BINARY) main.go
 
 test:
 	go test ./...
 
 clean:
-	rm -f envy.exe
-	rm -f .env .env.example
+ifeq ($(OS),Windows_NT)
+	if exist $(BINARY) del $(BINARY)
+else
+	rm -f $(BINARY)
+endif

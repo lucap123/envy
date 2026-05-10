@@ -7,9 +7,17 @@ import (
 	"github.com/lucap/envy/cmd"
 )
 
+// Version is set at build time via -ldflags
+var Version = "dev"
+
 func main() {
 	if len(os.Args) < 2 {
 		cmd.PrintUsage()
+		os.Exit(0)
+	}
+
+	if os.Args[1] == "version" || os.Args[1] == "--version" {
+		fmt.Printf("envy %s\n", Version)
 		os.Exit(0)
 	}
 

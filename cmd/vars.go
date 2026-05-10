@@ -8,16 +8,15 @@ import (
 	"github.com/lucap/envy/pkg/store"
 )
 
-func Set(s *store.Store, args []string) error {
+func Set(s *store.Store, key []byte, args []string) error {
 	if len(args) < 2 {
 		return fmt.Errorf("usage: envy set <key> <value>")
 	}
 
-	key := args[0]
-	// Join remaining args so values with spaces work: envy set MSG hello world
+	keyName := args[0]
 	val := strings.Join(args[1:], " ")
 
-	pv, err := s.Load()
+	pv, err := s.Load(key)
 	if err != nil {
 		return err
 	}
@@ -25,22 +24,22 @@ func Set(s *store.Store, args []string) error {
 	if pv.Profiles[pv.Active] == nil {
 		pv.Profiles[pv.Active] = make(map[string]string)
 	}
-	pv.Profiles[pv.Active][key] = val
+	pv.Profiles[pv.Active][keyName] = val
 
-	if err := s.Save(pv); err != nil {
+	if err := s.Save(pv, key); err != nil {
 		return err
 	}
 
-	fmt.Printf("Set %s in profile '%s'\n", key, pv.Active)
+	fmt.Printf("Set %s in profile '%s'\n", keyName, pv.Active)
 	return nil
 }
 
-func Get(s *store.Store, args []string) error {
+func Get(s *store.Store, key []byte, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: envy get <key>")
 	}
 
-	pv, err := s.Load()
+	pv, err := s.Load(key)
 	if err != nil {
 		return err
 	}
@@ -55,10 +54,10 @@ func Get(s *store.Store, args []string) error {
 	return nil
 }
 
-func List(s *store.Store, args []string) error {
+func List(s *store.Store, key []byte, args []string) error {
 	reveal := len(args) > 0 && args[0] == "--reveal"
 
-	pv, err := s.Load()
+	pv, err := s.Load(key)
 	if err != nil {
 		return err
 	}
@@ -89,7 +88,7 @@ func List(s *store.Store, args []string) error {
 	return nil
 }
 
-func Export(s *store.Store, args []string) error {
+func Export(s *store.Store, key []byte, args []string) error {
 	outFile := ".env"
 	for i, a := range args {
 		if a == "--file" && i+1 < len(args) {
@@ -97,7 +96,7 @@ func Export(s *store.Store, args []string) error {
 		}
 	}
 
-	pv, err := s.Load()
+	pv, err := s.Load(key)
 	if err != nil {
 		return err
 	}

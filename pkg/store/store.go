@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +12,6 @@ import (
 	"github.com/lucap/envy/pkg/crypto"
 )
 
-// ProjectVars holds all profiles for a project. Exported so cmd/share.go can use it.
 type ProjectVars struct {
 	Profiles map[string]map[string]string `json:"profiles"`
 	Active   string                       `json:"active"`
@@ -26,7 +26,12 @@ func (pv *ProjectVars) GetActiveVars() map[string]string {
 
 type Store struct {
 	baseDir string
-	key     []byte
+	salt    []byte
+}
+
+type Config struct {
+	Salt   string `json:"salt"`
+	Canary string `json:"canary"`
 }
 
 func NewStore() (*Store, error) {
@@ -35,40 +40,99 @@ func NewStore() (*Store, error) {
 		return nil, err
 	}
 
-	baseDir := filepath.Join(home, ".envy", "sessions")
+	envyDir := filepath.Join(home, ".envy")
+	baseDir := filepath.Join(envyDir, "sessions")
 	if err := os.MkdirAll(baseDir, 0700); err != nil {
 		return nil, err
 	}
 
-	key, err := getOrCreateKey(filepath.Join(home, ".envy"))
+	configPath := filepath.Join(envyDir, "config.json")
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return &Store{baseDir: baseDir}, nil
+	}
+
+	configData, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Store{baseDir: baseDir, key: key}, nil
+	var config Config
+	if err := json.Unmarshal(configData, &config); err != nil {
+		return nil, err
+	}
+
+	salt, err := hex.DecodeString(config.Salt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Store{baseDir: baseDir, salt: salt}, nil
 }
 
-func getOrCreateKey(dir string) ([]byte, error) {
-	keyPath := filepath.Join(dir, "key")
-	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-		// Generate a random 32-byte key
-		k := make([]byte, 32)
-		f, err := os.Open("/dev/urandom")
-		if err != nil {
-			// Fallback: derive from hostname + username
-			hostname, _ := os.Hostname()
-			h := sha256.Sum256([]byte(hostname + os.Getenv("USER")))
-			k = h[:]
-		} else {
-			f.Read(k)
-			f.Close()
-		}
-		if err := os.WriteFile(keyPath, k, 0600); err != nil {
-			return nil, fmt.Errorf("could not write key file: %w", err)
-		}
-		return k, nil
+func (s *Store) IsInitialized() bool {
+	home, _ := os.UserHomeDir()
+	configPath := filepath.Join(home, ".envy", "config.json")
+	_, err := os.Stat(configPath)
+	return err == nil
+}
+
+func (s *Store) Initialize(passphrase string, deviceSecret []byte) error {
+	salt, err := crypto.GenerateSalt(16)
+	if err != nil {
+		return err
 	}
-	return os.ReadFile(keyPath)
+
+	key := crypto.DeriveHardwareKey([]byte(passphrase), salt, deviceSecret)
+	canary, err := crypto.Encrypt([]byte("envy-canary"), key)
+	if err != nil {
+		return err
+	}
+
+	config := Config{
+		Salt:   hex.EncodeToString(salt),
+		Canary: hex.EncodeToString(canary),
+	}
+
+	configData, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	home, _ := os.UserHomeDir()
+	envyDir := filepath.Join(home, ".envy")
+	configPath := filepath.Join(envyDir, "config.json")
+	
+	if err := os.WriteFile(configPath, configData, 0600); err != nil {
+		return err
+	}
+
+	s.salt = salt
+	return nil
+}
+
+func (s *Store) VerifyPassphrase(passphrase string, deviceSecret []byte) ([]byte, error) {
+	home, _ := os.UserHomeDir()
+	configPath := filepath.Join(home, ".envy", "config.json")
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var config Config
+	if err := json.Unmarshal(configData, &config); err != nil {
+		return nil, err
+	}
+
+	salt, _ := hex.DecodeString(config.Salt)
+	canary, _ := hex.DecodeString(config.Canary)
+
+	key := crypto.DeriveHardwareKey([]byte(passphrase), salt, deviceSecret)
+	decrypted, err := crypto.Decrypt(canary, key)
+	if err != nil || string(decrypted) != "envy-canary" {
+		return nil, errors.New("invalid passphrase")
+	}
+
+	return key, nil
 }
 
 func (s *Store) projectID() (string, error) {
@@ -77,10 +141,10 @@ func (s *Store) projectID() (string, error) {
 		return "", err
 	}
 	hash := sha256.Sum256([]byte(cwd))
-	return hex.EncodeToString(hash[:16]), nil // 32 hex chars is enough
+	return hex.EncodeToString(hash[:16]), nil
 }
 
-func (s *Store) Load() (*ProjectVars, error) {
+func (s *Store) Load(key []byte) (*ProjectVars, error) {
 	id, err := s.projectID()
 	if err != nil {
 		return nil, err
@@ -99,7 +163,7 @@ func (s *Store) Load() (*ProjectVars, error) {
 		return nil, err
 	}
 
-	decrypted, err := crypto.Decrypt(encrypted, s.key)
+	decrypted, err := crypto.Decrypt(encrypted, key)
 	if err != nil {
 		return nil, fmt.Errorf("could not decrypt store: %w", err)
 	}
@@ -118,7 +182,7 @@ func (s *Store) Load() (*ProjectVars, error) {
 	return &pv, nil
 }
 
-func (s *Store) Save(pv *ProjectVars) error {
+func (s *Store) Save(pv *ProjectVars, key []byte) error {
 	id, err := s.projectID()
 	if err != nil {
 		return err
@@ -129,7 +193,7 @@ func (s *Store) Save(pv *ProjectVars) error {
 		return err
 	}
 
-	encrypted, err := crypto.Encrypt(data, s.key)
+	encrypted, err := crypto.Encrypt(data, key)
 	if err != nil {
 		return err
 	}

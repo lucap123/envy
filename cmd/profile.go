@@ -6,12 +6,12 @@ import (
 	"github.com/lucap/envy/pkg/store"
 )
 
-func Profile(s *store.Store, args []string) error {
+func Profile(s *store.Store, key []byte, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: envy profile [list|add|use|delete] <name>")
 	}
 
-	pv, err := s.Load()
+	pv, err := s.Load(key)
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func Profile(s *store.Store, args []string) error {
 			return fmt.Errorf("profile '%s' already exists", name)
 		}
 		pv.Profiles[name] = make(map[string]string)
-		if err := s.Save(pv); err != nil {
+		if err := s.Save(pv, key); err != nil {
 			return err
 		}
 		fmt.Printf("Created profile '%s'\n", name)
@@ -51,7 +51,7 @@ func Profile(s *store.Store, args []string) error {
 			return fmt.Errorf("profile '%s' does not exist — create it with 'envy profile add %s'", name, name)
 		}
 		pv.Active = name
-		if err := s.Save(pv); err != nil {
+		if err := s.Save(pv, key); err != nil {
 			return err
 		}
 		fmt.Printf("Switched to profile '%s'\n", name)
@@ -71,7 +71,7 @@ func Profile(s *store.Store, args []string) error {
 			return fmt.Errorf("profile '%s' does not exist", name)
 		}
 		delete(pv.Profiles, name)
-		if err := s.Save(pv); err != nil {
+		if err := s.Save(pv, key); err != nil {
 			return err
 		}
 		fmt.Printf("Deleted profile '%s'\n", name)

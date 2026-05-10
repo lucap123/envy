@@ -8,7 +8,7 @@ import (
 	"github.com/lucap/envy/pkg/store"
 )
 
-func Run(s *store.Store, args []string) error {
+func Run(s *store.Store, key []byte, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: envy run <command> [args...]")
 	}
@@ -23,7 +23,7 @@ func Run(s *store.Store, args []string) error {
 		}
 	}
 
-	pv, err := s.Load()
+	pv, err := s.Load(key)
 	if err != nil {
 		return err
 	}

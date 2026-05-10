@@ -4,17 +4,15 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
 	"errors"
 	"io"
+
+	"golang.org/x/crypto/argon2"
 )
 
 // Encrypt encrypts data using AES-256-GCM.
 func Encrypt(data []byte, key []byte) ([]byte, error) {
-	// Ensure key is exactly 32 bytes
-	k := normalizeKey(key)
-
-	block, err := aes.NewCipher(k)
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
@@ -34,9 +32,7 @@ func Encrypt(data []byte, key []byte) ([]byte, error) {
 
 // Decrypt decrypts data using AES-256-GCM.
 func Decrypt(data []byte, key []byte) ([]byte, error) {
-	k := normalizeKey(key)
-
-	block, err := aes.NewCipher(k)
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
@@ -59,15 +55,28 @@ func Decrypt(data []byte, key []byte) ([]byte, error) {
 	return plain, nil
 }
 
-// DeriveKey turns a password into a 32-byte AES key via SHA-256.
-func DeriveKey(password []byte) []byte {
-	hash := sha256.Sum256(password)
-	return hash[:]
+// DeriveHardwareKey turns a passphrase into a 32-byte AES key via Argon2id.
+// It includes a device-specific secret to ensure the key is hardware-locked.
+func DeriveHardwareKey(passphrase []byte, salt []byte, deviceSecret []byte) []byte {
+	// Combine salt and deviceSecret for true hardware-locking
+	combinedSalt := append(salt, deviceSecret...)
+	
+	// Argon2id parameters:
+	// time=3, memory=64MB, threads=4, keyLen=32
+	return argon2.IDKey(passphrase, combinedSalt, 3, 64*1024, 4, 32)
 }
 
-// normalizeKey pads or truncates key to exactly 32 bytes.
-func normalizeKey(key []byte) []byte {
-	k := make([]byte, 32)
-	copy(k, key)
-	return k
+// DeriveSimpleKey turns a passphrase into a 32-byte AES key via Argon2id.
+// Used for sharing bundles where hardware-locking is not desired.
+func DeriveSimpleKey(passphrase []byte, salt []byte) []byte {
+	return argon2.IDKey(passphrase, salt, 3, 64*1024, 4, 32)
+}
+
+// GenerateSalt creates a random salt of the specified size.
+func GenerateSalt(size int) ([]byte, error) {
+	salt := make([]byte, size)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, err
+	}
+	return salt, nil
 }
