@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lucap/envy/pkg/detect"
+	"github.com/lucap123/envy/pkg/detect"
 )
 
 func Init(args []string) error {

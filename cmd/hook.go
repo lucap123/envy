@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/lucap/envy/pkg/secrets"
+	"github.com/lucap123/envy/pkg/secrets"
 )
 
 const hookScript = `#!/bin/sh

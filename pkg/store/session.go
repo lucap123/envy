@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/lucap/envy/pkg/crypto"
+	"github.com/lucap123/envy/pkg/crypto"
 )
 
 type sessionFile struct {
