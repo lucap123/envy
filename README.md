@@ -76,7 +76,7 @@ Inject your variables directly into any command without exposing them to your sh
 If you have Go installed, you can install `envy` globally with a single command:
 
 ```bash
-go install github.com/lucap/envy@latest
+go install github.com/lucap123/envy@latest
 ```
 
 *Note: Ensure your `$GOPATH/bin` (or `%USERPROFILE%\go\bin` on Windows) is in your system PATH.*
