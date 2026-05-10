@@ -1,4 +1,4 @@
-module github.com/lucap/envy
+module github.com/lucap123/envy
 
 go 1.25.0
 

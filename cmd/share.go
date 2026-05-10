@@ -7,8 +7,8 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/lucap/envy/pkg/crypto"
-	"github.com/lucap/envy/pkg/store"
+	"github.com/lucap123/envy/pkg/crypto"
+	"github.com/lucap123/envy/pkg/store"
 	"golang.org/x/term"
 )
 

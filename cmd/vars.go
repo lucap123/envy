@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lucap/envy/pkg/store"
+	"github.com/lucap123/envy/pkg/store"
 )
 
 func Set(s *store.Store, key []byte, args []string) error {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lucap/envy/cmd"
+	"github.com/lucap123/envy/cmd"
 )
 
 // Version is set at build time via -ldflags

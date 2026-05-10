@@ -5,8 +5,8 @@ import (
 	"syscall"
 
 	"github.com/awnumar/memguard"
-	"github.com/lucap/envy/pkg/keychain"
-	"github.com/lucap/envy/pkg/store"
+	"github.com/lucap123/envy/pkg/keychain"
+	"github.com/lucap123/envy/pkg/store"
 	"golang.org/x/term"
 )
 

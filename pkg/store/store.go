@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lucap/envy/pkg/crypto"
+	"github.com/lucap123/envy/pkg/crypto"
 )
 
 type ProjectVars struct {
