@@ -4,17 +4,38 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"syscall"
 
+	"github.com/awnumar/memguard"
 	"github.com/lucap123/envy/pkg/store"
+	"golang.org/x/term"
 )
 
 func Set(s *store.Store, key []byte, args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: envy set <key> <value>")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: envy set <key> [value]")
 	}
 
 	keyName := args[0]
-	val := strings.Join(args[1:], " ")
+	var val string
+
+	if len(args) >= 2 {
+		// Value provided inline — warn about shell history exposure
+		fmt.Fprintf(os.Stderr, "Warning: passing values inline may expose them in shell history.\n")
+		fmt.Fprintf(os.Stderr, "Tip: run 'envy set %s' (no value) to enter it securely.\n\n", keyName)
+		val = strings.Join(args[1:], " ")
+	} else {
+		// Interactive prompt — no echo, value never touches the command line
+		fmt.Printf("Value for %s: ", keyName)
+		raw, err := term.ReadPassword(int(syscall.Stdin))
+		fmt.Println()
+		if err != nil {
+			return fmt.Errorf("failed to read value: %w", err)
+		}
+		buf := memguard.NewBufferFromBytes(raw)
+		defer buf.Destroy()
+		val = string(buf.Bytes())
+	}
 
 	pv, err := s.Load(key)
 	if err != nil {

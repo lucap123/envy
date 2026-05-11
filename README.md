@@ -41,9 +41,16 @@ make build
 ```
 
 ### 2. Set variables
-Store variables securely in your local encrypted store.
+Store variables securely. Run `envy set` with just the key name and you'll be prompted for the value with no echo — nothing reaches your shell history.
+```bash
+./envy set DATABASE_URL
+Value for DATABASE_URL: ········
+```
+
+You can also pass the value inline (e.g. in scripts), but envy will warn you that it may appear in shell history:
 ```bash
 ./envy set DATABASE_URL "postgres://localhost:5432/mydb"
+# Warning: passing values inline may expose them in shell history.
 ```
 
 ### 3. Run your app
@@ -57,7 +64,7 @@ Inject your variables directly into any command without exposing them to your sh
 ## Command Reference
 
 - `envy init` : Detect project type and create a `.env.example` template.
-- `envy set <key> <value>` : Store a variable in the active profile.
+- `envy set <key> [value]` : Store a variable in the active profile. Prompts securely (no echo) if value is omitted.
 - `envy get <key>` : Retrieve a variable (prints plain value).
 - `envy list` : List all variables in the active profile (masked by default).
 - `envy run <cmd>` : Run a command with all variables injected into the process.
